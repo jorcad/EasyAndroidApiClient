@@ -8,6 +8,10 @@ public abstract class BaseClient
 	protected int				mConnectionTimeoutRetry			= 0;
 	protected int				mSocketTimeoutRetry				= 0;
 	
+	protected abstract void addParam(String name,String value);
+	protected abstract void AddHeader(String name, String value);
+	protected abstract void AddTextContent(String name, String value);
+	
 	public BaseClient()
 	{
 		TAG = this.getClass().getSimpleName();
