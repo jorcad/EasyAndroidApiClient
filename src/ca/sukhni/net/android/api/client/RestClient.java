@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.net.NoRouteToHostException;
+import java.net.PortUnreachableException;
 import java.net.SocketTimeoutException;
 import java.net.URLEncoder;
 import java.net.UnknownHostException;
@@ -39,6 +40,7 @@ abstract class RestClient extends BaseClient
 	protected ArrayList<NameValuePair> 					mParams						= null;
     protected ArrayList<NameValuePair> 					mHeaders					= null;
     protected ArrayList<NameValuePair> 					mContent					= null;
+    protected ArrayList<String>							mPath						= null;
     protected Method									mMethod						= null;
     private String 										fullUrl						= null;
     protected String									mBaseUri					= null;
@@ -56,6 +58,7 @@ abstract class RestClient extends BaseClient
     	mParams = new ArrayList<NameValuePair>();
         mHeaders = new ArrayList<NameValuePair>();
         mContent = new ArrayList<NameValuePair>();
+        mPath = new ArrayList<String>();
         
         mCharSetType = "UTF-8";
         mContentType = MediaType.APPLICATION_XML;
@@ -79,6 +82,25 @@ abstract class RestClient extends BaseClient
 	public void setBaseUri(String baseUri)
 	{
 		this.mBaseUri = baseUri;
+	}
+
+	@Override
+	protected void addPath(String path)
+	{
+		if(path!=null && path.trim().length()!=0)
+			mPath.add(path.trim());
+	}
+
+	@Override
+	protected void addPaths(String... paths)
+	{
+		if(paths!=null)
+		{
+			for(int i=0;i<paths.length;i++)
+			{
+				mPath.add(paths[i]);
+			}
+		}
 	}
 
 	@Override
@@ -111,6 +133,19 @@ abstract class RestClient extends BaseClient
 	@Override
 	protected void execute(Method method) throws UnsupportedEncodingException,UnresolvedAddressException, NoRouteToHostException, ConnectTimeoutException, SocketTimeoutException, UnknownHostException, ConnectionClosedException, FileNotFoundException, IOException, Exception
 	{
+		// add paths
+		StringBuilder pathBuilder = new StringBuilder();
+		if(mPath!=null)
+		{
+			int size = mPath.size();
+			for(int i=0;i<size;i++)
+			{
+				String path = mPath.get(i).replace("/", "").replace("\\", "");
+				if(i<size) pathBuilder.append("/");
+				pathBuilder.append(path);
+			}
+		}
+		
 		// add parameters
 		String combinedParams = "";
 		if (!mParams.isEmpty())
@@ -133,66 +168,66 @@ abstract class RestClient extends BaseClient
 
 		switch (method)
 		{
-		case GET:
-		{
-			Logger.debug("RestClient GET: " + mBaseUri + combinedParams);
-			fullUrl = mBaseUri + combinedParams;
-			HttpGet request = new HttpGet(mBaseUri + combinedParams);
-			// add headers
-			for (NameValuePair h : mHeaders)
+			case GET:
 			{
-				request.addHeader(h.getName(), h.getValue());
+				fullUrl = mBaseUri + pathBuilder.toString() + combinedParams;
+				Logger.debug("RestClient GET: " + fullUrl);
+				HttpGet request = new HttpGet(mBaseUri + combinedParams);
+				// add headers
+				for (NameValuePair h : mHeaders)
+				{
+					request.addHeader(h.getName(), h.getValue());
+				}
+				executeRequest(request, mBaseUri);
+				break;
 			}
-			executeRequest(request, mBaseUri);
-			break;
-		}
-		case POST:
-		{
-			Logger.debug("RestClient POST: " + mBaseUri + combinedParams);
-			fullUrl = mBaseUri + combinedParams;
-			HttpPost request = new HttpPost(mBaseUri + combinedParams);
-
-			// add headers
-			for (NameValuePair h : mHeaders)
+			case POST:
 			{
-				request.addHeader(h.getName(), h.getValue());
+				fullUrl = mBaseUri + pathBuilder.toString() + combinedParams;
+				Logger.debug("RestClient POST: " + fullUrl);
+				HttpPost request = new HttpPost(mBaseUri + combinedParams);
+	
+				// add headers
+				for (NameValuePair h : mHeaders)
+				{
+					request.addHeader(h.getName(), h.getValue());
+				}
+				if (mContent.size() > 0)
+				{
+					StringEntity entity = new StringEntity(mContent.get(0).getValue().toString(), mCharSetType);
+					entity.setContentEncoding(mCharSetType);
+					entity.setContentType("application/xml");
+					request.setEntity(entity);
+				}
+				executeRequest(request, mBaseUri);
+				break;
 			}
-			if (mContent.size() > 0)
+			case PUT:
 			{
-				StringEntity entity = new StringEntity(mContent.get(0).getValue().toString(), mCharSetType);
-				entity.setContentEncoding(mCharSetType);
-				entity.setContentType("application/xml");
-				request.setEntity(entity);
+				fullUrl = mBaseUri + pathBuilder.toString() + combinedParams;
+				Logger.debug("RestClient PUT: " + fullUrl);
+				HttpPut request = new HttpPut(mBaseUri + combinedParams);
+				// add headers
+				for (NameValuePair h : mHeaders)
+				{
+					request.addHeader(h.getName(), h.getValue());
+				}
+				executeRequest(request, mBaseUri);
+				break;
 			}
-			executeRequest(request, mBaseUri);
-			break;
-		}
-		case PUT:
-		{
-			Logger.debug("RestClient PUT: " + mBaseUri + combinedParams);
-			fullUrl = mBaseUri + combinedParams;
-			HttpPut request = new HttpPut(mBaseUri + combinedParams);
-			// add headers
-			for (NameValuePair h : mHeaders)
+			case DELETE:
 			{
-				request.addHeader(h.getName(), h.getValue());
+				fullUrl = mBaseUri + pathBuilder.toString() + combinedParams;
+				Logger.debug("RestClient DELETE: " + fullUrl);
+				HttpDelete request = new HttpDelete(mBaseUri + combinedParams);
+				// add headers
+				for (NameValuePair h : mHeaders)
+				{
+					request.addHeader(h.getName(), h.getValue());
+				}
+				executeRequest(request, fullUrl);
+				break;
 			}
-			executeRequest(request, mBaseUri);
-			break;
-		}
-		case DELETE:
-		{
-			Logger.debug("RestClient DELETE: " + mBaseUri + combinedParams);
-			fullUrl = mBaseUri + combinedParams;
-			HttpDelete request = new HttpDelete(mBaseUri + combinedParams);
-			// add headers
-			for (NameValuePair h : mHeaders)
-			{
-				request.addHeader(h.getName(), h.getValue());
-			}
-			executeRequest(request, fullUrl);
-			break;
-		}
 		}
 	}
 
@@ -241,16 +276,23 @@ abstract class RestClient extends BaseClient
             client.getConnectionManager().shutdown();
             throw e;
         }
-        catch (NoRouteToHostException e)
+        catch(PortUnreachableException e)
         {
         	Logger.debug("E0004:RestClient:NoRouteToHostException:executeRequest: " + url + "\n" + e.getMessage());
         	mExceptionMessage = "There was an error finding a route to the server. An intermediate router, access point or gateway may be failing or a firewall is blocking the connection to the internet. [E0004]";
             client.getConnectionManager().shutdown();
             throw e;
         }
+        catch (NoRouteToHostException e)
+        {
+        	Logger.debug("E0005:RestClient:NoRouteToHostException:executeRequest: " + url + "\n" + e.getMessage());
+        	mExceptionMessage = "There was an error finding a route to the server. An intermediate router, access point or gateway may be failing or a firewall is blocking the connection to the internet. [E0004]";
+            client.getConnectionManager().shutdown();
+            throw e;
+        }
         catch (ConnectTimeoutException e)
         {
-        	Logger.error("E0005:RestClient:ConnectTimeoutException:executeRequest: " + url + "\n" + e.getMessage());
+        	Logger.error("E0006:RestClient:ConnectTimeoutException:executeRequest: " + url + "\n" + e.getMessage());
         	Logger.debug("RestClient:ConnectTimeoutException:remain try count: " + mConnectionTimeoutRetry);
         	mExceptionMessage = "The attempt to connect to the server has timed out. The server is temporarily busy or otherwise congested at this time. [E0005]";
         	if(mConnectionTimeoutRetry>0 && mEnableConntectionTimeoutRetry==true)
@@ -267,7 +309,7 @@ abstract class RestClient extends BaseClient
         }
         catch(SocketTimeoutException e)
         {
-        	Logger.error("E0006:RestClient:SocketTimeoutException:executeRequest: " + url +"\n" + e.getMessage());
+        	Logger.error("E0007:RestClient:SocketTimeoutException:executeRequest: " + url +"\n" + e.getMessage());
         	Logger.debug("RestClient:SocketTimeoutException:remain try count: " + mSocketTimeoutRetry);
         	mExceptionMessage = "The connection with the server has timed out. This could be due to a slow connection or poor signal strength. [E0006]";
         	if(mSocketTimeoutRetry>0 && mEnableSocketTimeoutRetry==true)
@@ -283,26 +325,26 @@ abstract class RestClient extends BaseClient
         }
         catch(ConnectionClosedException e)
         {
-        	Logger.error("E0007:RestClient:ConnectionClosedException:executeRequest: " + url +"\n" + e.getMessage());
+        	Logger.error("E0008:RestClient:ConnectionClosedException:executeRequest: " + url +"\n" + e.getMessage());
         	mExceptionMessage = "The internet connection as closed unexpectedly. This could be due to a slow connection or poor signal strength. [E0007]";
         	throw e;
         }
         catch(FileNotFoundException e)
         {
-        	Logger.error("E0008:RestClient:FileNotFoundException:executeRequest: " + url +"\n" + e.getMessage());
+        	Logger.error("E0009:RestClient:FileNotFoundException:executeRequest: " + url +"\n" + e.getMessage());
         	mExceptionMessage = "The file requested was not found. [E0008]";
         	throw e;
         }
         catch (IOException e)
         {
-        	Logger.error("E0009:RestClient:IOException:executeRequest: " + url + "\n" + e.getMessage());
+        	Logger.error("E0010:RestClient:IOException:executeRequest: " + url + "\n" + e.getMessage());
         	mExceptionMessage = "There is a problem with internet connection, please check your internet connection. [E0009]";
             client.getConnectionManager().shutdown();
             throw e;
         }
         catch(Exception e)
         {
-        	Logger.error("E0010:RestClient:Exception:executeRequest: " + url + "\n" + e.getMessage());
+        	Logger.error("E0011:RestClient:Exception:executeRequest: " + url + "\n" + e.getMessage());
         	mExceptionMessage = "Unexpected error occurred ("+e.getMessage()+"). [E0010]";
             client.getConnectionManager().shutdown();
             throw e;

@@ -26,6 +26,9 @@ public abstract class BaseClient
 	protected abstract void addParam(String name,String value);
 	protected abstract void addHeader(String name, String value);
 	protected abstract void addTextContent(String name, String value);
+	protected abstract void addPath(String path);
+	protected abstract void addPaths(String... paths);
+	
 	protected abstract void execute(Method method) throws UnsupportedEncodingException,UnresolvedAddressException,UnknownHostException,
 	NoRouteToHostException,ConnectTimeoutException,SocketTimeoutException,ConnectionClosedException,FileNotFoundException,IOException,Exception;
 	

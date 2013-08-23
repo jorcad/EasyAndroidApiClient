@@ -271,4 +271,16 @@ public enum Status
 	 */
 	public String desc(){return this.desc;}
 	
+	public static Status fromStatusCode(int statusCode)
+	{
+		for (Status status : Status.values())
+		{
+			if (status.code == statusCode)
+			{
+				return status;
+			}
+		}
+		return null;
+	}
+	
 }
