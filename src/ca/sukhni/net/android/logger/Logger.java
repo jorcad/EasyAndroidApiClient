@@ -1,4 +1,4 @@
-package ca.sukhni.net.android.api.client;
+package ca.sukhni.net.android.logger;
 
 import android.util.Log;
 

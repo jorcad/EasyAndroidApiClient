@@ -1,4 +1,4 @@
-package ca.sukhni.net.android.api.client;
+package ca.sukhni.net.android.api.socket;
 
 import java.io.IOException;
 import java.net.Socket;

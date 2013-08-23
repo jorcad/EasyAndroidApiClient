@@ -11,6 +11,7 @@ import java.nio.channels.UnresolvedAddressException;
 import org.apache.http.ConnectionClosedException;
 import org.apache.http.conn.ConnectTimeoutException;
 
+import ca.sukhni.net.android.logger.Logger;
 import android.os.AsyncTask;
 
 public class ApiClient extends RestClient
@@ -144,16 +145,19 @@ public class ApiClient extends RestClient
 	
 	private class ExecuterTask extends AsyncTask<Void, Void, Integer>
 	{
+		public final String EXECUTER_TASK_TAG = ExecuterTask.class.getSimpleName();
 		private Exception exception = null;
 		private ExceptionStatus exceptionStatus = null;
 		private ApiClientHandler handler = null;
 		public ExecuterTask(ApiClientHandler handler)
 		{
+			Logger.debug(EXECUTER_TASK_TAG + ": Constructor");
 			this.handler = handler;
 		}
 		@Override
 		protected Integer doInBackground(Void... params)
 		{
+			Logger.debug(TAG + ": Background");
 			try
 			{
 				executeAndBlock();
@@ -225,6 +229,7 @@ public class ApiClient extends RestClient
 		@Override
 		protected void onPostExecute(Integer result)
 		{
+			Logger.debug(TAG + ": PostExecute");
 			if(handler!=null)
 			{
 				if(result!=null)
@@ -239,6 +244,10 @@ public class ApiClient extends RestClient
 						handler.onSuccessful(ca.sukhni.net.android.api.client.Status.fromStatusCode(responseCode), getResponseStatusLine(), getResponseEntity());
 					}
 					else if(responseCode>=300 && responseCode<400)
+					{
+						handler.onRedirection(ca.sukhni.net.android.api.client.Status.fromStatusCode(responseCode), getResponseStatusLine(), getResponseEntity());
+					}
+					else if(responseCode>=400 && responseCode<500)
 					{
 						handler.onClientError(ca.sukhni.net.android.api.client.Status.fromStatusCode(responseCode), getResponseStatusLine(), getResponseEntity());
 					}

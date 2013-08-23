@@ -1,10 +1,7 @@
 package ca.sukhni.net.android.api.client;
 
-import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.net.NoRouteToHostException;
 import java.net.PortUnreachableException;
@@ -15,6 +12,7 @@ import java.nio.channels.UnresolvedAddressException;
 import java.util.ArrayList;
 
 import org.apache.http.ConnectionClosedException;
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
@@ -31,6 +29,9 @@ import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.params.BasicHttpParams;
 import org.apache.http.params.HttpConnectionParams;
 import org.apache.http.params.HttpParams;
+
+import ca.sukhni.net.android.api.socket.HttpUtils;
+import ca.sukhni.net.android.logger.Logger;
 
 
 abstract class RestClient extends BaseClient
@@ -49,7 +50,7 @@ abstract class RestClient extends BaseClient
     protected String									mCharSetType				= null;
     protected String									mContentType				= null;
     protected String									mExceptionMessage			= null;
-    protected HttpEntity								mResponseEntity				= null;
+    protected ResponseEntity							mResponseEntity				= null;
     protected long										mReponseContentLength		= -1;
     
     public RestClient()
@@ -106,15 +107,17 @@ abstract class RestClient extends BaseClient
 	@Override
 	protected void addParam(String name, String value)
 	{
+		value = (value != null) ? value : "";
 		mParams.add(new BasicNameValuePair(name, value));
-        Logger.debug("RestClient.AddParam(\"" + name + "\",\"" + value + "\")");
+		Logger.debug("RestClient.AddParam(\"" + name + "\",\"" + value + "\")");
 	}
 
 	@Override
 	protected void addHeader(String name, String value)
 	{
-		 mHeaders.add(new BasicNameValuePair(name, value));
-	     Logger.debug("RestClient.AddHeader(\"" + name + "\",\"" + value + "\")");
+		value = (value != null) ? value : "";
+		mHeaders.add(new BasicNameValuePair(name, value));
+		Logger.debug("RestClient.AddHeader(\"" + name + "\",\"" + value + "\")");
 	}
 
 	@Override
@@ -172,7 +175,7 @@ abstract class RestClient extends BaseClient
 			{
 				fullUrl = mBaseUri + pathBuilder.toString() + combinedParams;
 				Logger.debug("RestClient GET: " + fullUrl);
-				HttpGet request = new HttpGet(mBaseUri + combinedParams);
+				HttpGet request = new HttpGet(fullUrl);
 				// add headers
 				for (NameValuePair h : mHeaders)
 				{
@@ -185,7 +188,7 @@ abstract class RestClient extends BaseClient
 			{
 				fullUrl = mBaseUri + pathBuilder.toString() + combinedParams;
 				Logger.debug("RestClient POST: " + fullUrl);
-				HttpPost request = new HttpPost(mBaseUri + combinedParams);
+				HttpPost request = new HttpPost(fullUrl);
 	
 				// add headers
 				for (NameValuePair h : mHeaders)
@@ -199,7 +202,7 @@ abstract class RestClient extends BaseClient
 					entity.setContentType("application/xml");
 					request.setEntity(entity);
 				}
-				executeRequest(request, mBaseUri);
+				executeRequest(request, fullUrl);
 				break;
 			}
 			case PUT:
@@ -212,7 +215,7 @@ abstract class RestClient extends BaseClient
 				{
 					request.addHeader(h.getName(), h.getValue());
 				}
-				executeRequest(request, mBaseUri);
+				executeRequest(request, fullUrl);
 				break;
 			}
 			case DELETE:
@@ -234,6 +237,7 @@ abstract class RestClient extends BaseClient
 	private void executeRequest(HttpUriRequest request, String url) throws UnresolvedAddressException,UnknownHostException,
 	NoRouteToHostException,ConnectTimeoutException,SocketTimeoutException,ConnectionClosedException,FileNotFoundException,IOException,Exception
 	{
+		Logger.debug(TAG + ": executeRequest(HttpUriRequest request, String url)");
 		HttpParams conParams = new BasicHttpParams();
         HttpConnectionParams.setConnectionTimeout(conParams, mConnectionTimeout);
         HttpConnectionParams.setSoTimeout(conParams, mSocketTimeout);
@@ -244,10 +248,11 @@ abstract class RestClient extends BaseClient
 			HttpResponse httpResponse = client.execute(request);
 			mResponseCode = httpResponse.getStatusLine().getStatusCode();
 			mReponseStatusLine = httpResponse.getStatusLine().getReasonPhrase();
-			mResponseEntity = httpResponse.getEntity();
+			Logger.debug(TAG + ":executeRequest(HttpUriRequest request, String url): ResponseCode= " + mResponseCode + ", ReponseStatusLine= " + mReponseStatusLine);
+			mResponseEntity = iniResponseEntity(httpResponse.getEntity());
 			try
 			{
-				if(httpResponse.getEntity()!=null) mReponseContentLength = httpResponse.getEntity().getContentLength();
+				if(httpResponse.getEntity()!=null) mReponseContentLength = mResponseEntity.getContentLength();
 			}
 			catch(Exception ex){}
 			
@@ -364,7 +369,7 @@ abstract class RestClient extends BaseClient
 	}
 
 	@Override
-	protected HttpEntity getResponseEntity()
+	protected ResponseEntity getResponseEntity()
 	{
 		return mResponseEntity;
 	}
@@ -372,13 +377,7 @@ abstract class RestClient extends BaseClient
 	@Override
 	protected String getResponseContentAsString() throws IllegalStateException, IOException
 	{
-		return readEntity(mResponseEntity);
-	}
-
-	@Override
-	protected InputStream getReponseContent() throws IllegalStateException, IOException
-	{
-		return mResponseEntity.getContent();
+		return mResponseEntity.getResponseContentAsString();
 	}
 	
 	@Override
@@ -396,38 +395,43 @@ abstract class RestClient extends BaseClient
 	 */
 	private String readEntity(HttpEntity entity) throws IllegalStateException, IOException 
 	{
-		InputStream inputStream  = null;
-		StringBuilder stringBuilder = new StringBuilder();
-		try
+		return HttpEntityHelper.readEntityAsString(entity);
+	}
+	
+	private ResponseEntity iniResponseEntity(HttpEntity httpEntity)
+	{
+		ResponseEntityImpt responseEntity = new ResponseEntityImpt();
+		if(httpEntity!=null)
 		{
-			inputStream = entity.getContent();
-			BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-			String line = null;
-			while((line = reader.readLine())!=null)
-			{
-				stringBuilder.append(line);
-			}
-		}
-		catch(IllegalStateException ex)
-		{
-			throw ex;
-		}
-		catch(IOException ex)
-		{
-			throw ex;
-		}
-		finally
-		{
+			responseEntity.setStreaming(httpEntity.isStreaming());
+			responseEntity.setRepeatable(httpEntity.isRepeatable());
+			responseEntity.setContentLength(httpEntity.getContentLength());
+			responseEntity.setChuncked(httpEntity.isChunked());
+			String strEntity = null;
 			try
 			{
-				if(inputStream!=null) inputStream.close();
-			}
+				strEntity = readEntity(httpEntity);}
 			catch(Exception ex)
 			{
 				Logger.printStackTrace(ex);
 			}
+			responseEntity.setStrEntity(strEntity);
+			Header header = httpEntity.getContentType();
+			if(header!=null)
+			{
+				responseEntity.getResponseHeaderImpt().setName(httpEntity.getContentType().getName());
+				responseEntity.getResponseHeaderImpt().setValue(httpEntity.getContentType().getValue());
+				responseEntity.getResponseHeaderImpt().setElements(httpEntity.getContentType().getElements());
+			}
+			else
+			{
+				responseEntity.setResponseHeaderImpt(null);
+			}
+			return responseEntity;
 		}
-		
-		return stringBuilder.toString();
+		else 
+		{
+			 return null;
+		}
 	}
 }

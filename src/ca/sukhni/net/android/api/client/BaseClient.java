@@ -2,15 +2,12 @@ package ca.sukhni.net.android.api.client;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.NoRouteToHostException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.channels.UnresolvedAddressException;
-
 import org.apache.http.ConnectionClosedException;
-import org.apache.http.HttpEntity;
 import org.apache.http.conn.ConnectTimeoutException;
 
 public abstract class BaseClient
@@ -37,8 +34,7 @@ public abstract class BaseClient
 	
 	protected abstract Integer getResponseCode();
 	protected abstract String getResponseStatusLine();
-	protected abstract HttpEntity getResponseEntity();
-	protected abstract InputStream getReponseContent() throws IllegalStateException, IOException;
+	protected abstract ResponseEntity getResponseEntity();
 	/**
 	 * this function will read the response content every time you call it, NOTE: DATA IS NOT CACHED
 	 * @return
